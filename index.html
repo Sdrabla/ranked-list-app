@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ranked List</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1 id="title">Ranked</h1>
+    <h2>Rank anime/manga/Webtoons/etc. </h2>
+    <h3>Rate each factor out of 10 and add a review! Add tags to your item! </h3> 
+    <button id="addButton" onclick="on()" type="submit" >Add new item</button>
+    <button id="clearButton" onclick="clearItems()" type="submit" >Clear all items</button>
+    <div id="overlay"></div>
+    <form id="addItemForm">
+      <h1 id="addNew">Add New:</h1>
+      <input type="text" id="ItemInput" placeholder="Title" required>
+      <input type="number" id="ArtInput" min="1" max="10" placeholder="Rank art style out of 10" required>
+      <input type="number" id="StoryInput" min="1" max="10" placeholder="Rank story out of 10" required>
+      <input type="number" id="CharactersInput" min="1" max="10" placeholder="Rank characters out of 10" required>
+      <input type="number" id="EnjoymentInput" min="1" max="10" placeholder="Rank overall enjoyment out of 10" required>
+      <input type="text" id="TagsInput" placeholder="Add tags (separate with commas)">
+      <textarea id="ReviewInput" placeholder="Add a review"></textarea>
+      <button onclick="addItem() ; off()" type="submit" >Add</button>
+    </form>
+  </header>
+  <main>
+    
+    
+    <ul id="rankedList"></ul>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>

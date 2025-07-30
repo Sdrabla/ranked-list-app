@@ -1,0 +1,196 @@
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    background-color: #280068;
+    color: white;
+  }
+  
+  header {
+    position: relative;
+    background-color: #8DE4FF;
+    padding-bottom: 20px;
+    color: #280068;
+    z-index: 1;
+  }
+  
+  #title {
+    font-family: Pabricks;
+    font-size: 100px;
+    font-weight: bold;
+    margin: 0px;
+  }
+  
+  form {
+    margin: 20px;
+  }
+  
+  input {
+    padding: 10px;
+    width: 300px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  button {
+    padding: 10px 20px;
+    background-color: #FF0080;
+    color: white;
+    border: none;
+    position: relative;
+    border-radius: 35px;
+    cursor: pointer;
+  }
+  
+  #addButton {
+    position: relative;
+    top: 10px;
+    right: 10px;
+  }
+
+  #addButton:hover {
+    background-color: #f46eb3;
+  }
+
+  #clearButton {
+    position: relative;
+    top: 9px;
+    right: 1px;
+  }
+
+  #clearButton:hover {
+    background-color: #5f2141;
+  }
+
+  ul {
+    list-style-type: none;
+    padding: 0;
+  }
+  
+  li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid #8DE4FF;
+    border-radius: 10px;
+    font-size: 20px;
+  }
+  
+  button.rank-btn {
+    margin-left: 10px;
+  }
+
+  #overlay {
+    display: none; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0, 0, 0, 0.694); 
+    z-index: 1;
+  }
+
+  #addItemForm {
+    display: none; 
+    position: absolute; 
+    top: 50px; 
+    right: 500px; 
+    left: 500px; 
+    background-color: white; 
+    padding: 40px 20px 80px 20px;
+    transform: translate(0%, 300px); 
+    border-radius: 8px; 
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+  }
+
+  #addItemForm.active {
+    display: block; /* Show when active */
+  }
+
+  #addNew {
+    font-size: 20px;
+    font-weight: bold;
+    color: #280068;
+  }
+
+
+
+
+  #overlay.active {
+    display: block; /* Show when active */
+  }
+
+  /* #itemInput {
+    width: 50%;
+    font-size: 16px;
+  } */
+
+  #rateInput {
+    width: 300px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  #ReviewInput {
+    width: 300px;
+    height: 120px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    resize: vertical;
+    min-height: 120px;
+  }
+
+  #rankedList > li{
+    cursor: pointer;
+  }
+
+  #overlay-content {
+    position: absolute;
+    background-color: #8DE4FF;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px;
+    border-radius: 8px;
+    color: #280068;
+  }
+
+  .item-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .item-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+  }
+
+  .tag {
+    background-color: #FF0080;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+  }
