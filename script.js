@@ -66,11 +66,21 @@ function renderList() {
           <div class="item-content">
             <span class="item-title">${index + 1}: ${item.name} - Score: ${item.score}</span>
             ${tagsDisplay}
+            <div class="item-actions">
+              <button class="edit-btn" onclick="editItem(${item.id})">Edit</button>
+              <button class="delete-btn" onclick="deleteItem(${item.id})">Delete</button>
+            </div>
           </div>
         `;
         
-        // Add click event to show details
-        li.addEventListener('click', () => {
+        // Add click event to show details (only for the item content, not buttons)
+        const itemContent = li.querySelector('.item-content');
+        itemContent.addEventListener('click', (e) => {
+            // Don't show details if clicking on edit or delete buttons
+            if (e.target.classList.contains('edit-btn') || e.target.classList.contains('delete-btn')) {
+                return;
+            }
+            
             // Create overlay content
             const tagsDisplay = item.tags && item.tags.length > 0 
                 ? `<p>Tags: ${item.tags.map(tag => `<span class="tag">${tag.trim()}</span>`).join(' ')}</p>`
@@ -85,7 +95,11 @@ function renderList() {
                     <p>Enjoyment: ${item.enjoyment}</p>
                     ${tagsDisplay}
                     <p>Review: ${item.review}</p>
-                    <button id="closeOverlay">Close</button>
+                    <div class="overlay-actions">
+                        <button id="editOverlayBtn" onclick="editItem(${item.id})">Edit</button>
+                        <button id="deleteOverlayBtn" onclick="deleteItem(${item.id})">Delete</button>
+                        <button id="closeOverlay">Close</button>
+                    </div>
                 </div>
             `;
             // Set overlay HTML
@@ -96,6 +110,7 @@ function renderList() {
             // Close overlay event
             document.getElementById("closeOverlay").addEventListener("click", () => {
                 overlay.style.display = "none"; // Hide overlay
+                overlay.innerHTML = ""; // Clear overlay content
             });
         });
 
@@ -165,17 +180,127 @@ function updateScore(id, change) {
     }
 }
 
+function editItem(id) {
+    const item = items.find(item => item.id === id);
+    if (!item) return;
+    
+    // Populate the form with existing data
+    itemInput.value = item.name;
+    artInput.value = item.art;
+    storyInput.value = item.story;
+    charactersInput.value = item.characters;
+    enjoymentInput.value = item.enjoyment;
+    tagsInput.value = item.tags ? item.tags.join(', ') : '';
+    reviewInput.value = item.review;
+    
+    // Show the form
+    const overlay = document.getElementById("overlay");
+    overlay.innerHTML = "";
+    
+    const addForm = document.querySelector("#addItemForm");
+    addForm.classList.add('active');
+    overlay.style.display = "block";
+    
+    // Change the form title and button
+    const addNewTitle = document.getElementById("addNew");
+    const addButton = addForm.querySelector('button[type="submit"]');
+    
+    addNewTitle.textContent = "Edit Item:";
+    addButton.textContent = "Update";
+    addButton.onclick = () => updateItem(id);
+}
+
+function updateItem(id) {
+    const item = items.find(item => item.id === id);
+    if (!item) return;
+    
+    const itemName = itemInput.value.trim();
+    const art = parseInt(artInput.value, 10);
+    const story = parseInt(storyInput.value, 10);
+    const characters = parseInt(charactersInput.value, 10);
+    const enjoyment = parseInt(enjoymentInput.value, 10);
+    const tagsText = tagsInput.value.trim();
+    const review = reviewInput.value.trim();
+    
+    // Parse tags from comma-separated input
+    const tags = tagsText ? tagsText.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [];
+
+    // Validate input values
+    if (itemName && !isNaN(art) && !isNaN(story) && !isNaN(characters) && !isNaN(enjoyment) && art >= 1 && story >= 1 && characters >= 1 && enjoyment >= 1) {
+        // Update the item
+        item.name = itemName;
+        item.art = art;
+        item.story = story;
+        item.characters = characters;
+        item.enjoyment = enjoyment;
+        item.tags = tags;
+        item.review = review;
+        item.score = calculateWeightedScore({art, story, characters, enjoyment});
+        
+        // Recalculate scores for all items
+        items.forEach(item => {
+            item.score = calculateWeightedScore({
+                art: item.art,
+                story: item.story,
+                characters: item.characters,
+                enjoyment: item.enjoyment
+            });
+        });
+
+        renderList();
+        clearInputs();
+        off(); // Close the form
+        
+        // Reset form title and button
+        const addNewTitle = document.getElementById("addNew");
+        const addButton = document.querySelector('#addItemForm button[type="submit"]');
+        addNewTitle.textContent = "Add New:";
+        addButton.textContent = "Add";
+        addButton.onclick = () => addItem();
+
+    } else {
+        console.log('Please enter valid ratings between 1 and 10.');
+    }
+}
+
+function deleteItem(id) {
+    if (confirm('Are you sure you want to delete this item?')) {
+        items = items.filter(item => item.id !== id);
+        renderList();
+        
+        // Close overlay if it's open
+        const overlay = document.getElementById("overlay");
+        if (overlay.style.display === "block") {
+            overlay.style.display = "none";
+            overlay.innerHTML = "";
+        }
+    }
+}
+
 
 function on() {
-        document.getElementById("addItemForm").style.display = "block";
+        // Clear any existing overlay content first
+        const overlay = document.getElementById("overlay");
+        overlay.innerHTML = "";
+        
         const addForm = document.querySelector("#addItemForm");
         addForm.classList.add('active');
-        document.getElementById("overlay").style.display = "block";
+        overlay.style.display = "block";
     }
       
     function off() {
-        document.getElementById("addItemForm").style.display = "none";
-        document.getElementById("overlay").style.display = "none";
+        const addForm = document.querySelector("#addItemForm");
+        addForm.classList.remove('active');
+        const overlay = document.getElementById("overlay");
+        overlay.style.display = "none";
+        overlay.innerHTML = ""; // Clear overlay content
+        
+        // Reset form title and button
+        const addNewTitle = document.getElementById("addNew");
+        const addButton = document.querySelector('#addItemForm button[type="submit"]');
+        addNewTitle.textContent = "Add New:";
+        addButton.textContent = "Add";
+        addButton.onclick = () => addItem();
     }
 
 document.addEventListener('DOMContentLoaded', () => {
