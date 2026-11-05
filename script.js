@@ -57,7 +57,7 @@ function getItemIndex(id) {
 
 // Render the ranked list 
 function renderList() {
-    rankedList.innerHTML = '';
+    rankedList.replaceChildren();
 
     items.sort((a, b) => b.score - a.score); 
     const searchTerm = searchInput.value.trim().toLocaleLowerCase();
@@ -67,7 +67,10 @@ function renderList() {
         .filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const previousTag = tagFilter.value;
 
-    tagFilter.innerHTML = '<option value="">All tags</option>';
+    const allTagsOption = document.createElement('option');
+    allTagsOption.value = '';
+    allTagsOption.textContent = 'All tags';
+    tagFilter.replaceChildren(allTagsOption);
     availableTags.forEach(tag => {
         const option = document.createElement('option');
         option.value = tag;
@@ -249,6 +252,52 @@ function showItemDetails(item) {
     closeButton.focus();
 }
 
+function showRankingInfo() {
+    const overlay = document.getElementById('overlay');
+    const content = document.createElement('div');
+    content.id = 'overlay-content';
+    content.setAttribute('role', 'dialog');
+    content.setAttribute('aria-modal', 'true');
+    content.setAttribute('aria-labelledby', 'rankingInfoTitle');
+
+    const title = document.createElement('h2');
+    title.id = 'rankingInfoTitle';
+    title.textContent = 'How scoring works';
+
+    const explanation = document.createElement('p');
+    explanation.textContent = 'Each title is rated from 1 to 10 in four categories. The overall score is a weighted average:';
+
+    const formula = document.createElement('p');
+    formula.textContent = 'Art × 30% + Story × 30% + Characters × 20% + Enjoyment × 20%';
+
+    const example = document.createElement('p');
+    example.textContent = 'For example, ratings of 8 for Art, 9 for Story, 7 for Characters, and 10 for Enjoyment give a score of 8.50.';
+
+    const ordering = document.createElement('p');
+    ordering.textContent = 'Scores are rounded to two decimal places, and titles with the highest scores appear first.';
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions';
+    const closeButton = document.createElement('button');
+    closeButton.id = 'closeOverlay';
+    closeButton.type = 'button';
+    closeButton.textContent = 'Close';
+    closeButton.addEventListener('click', () => {
+        overlay.classList.remove('active');
+        overlay.setAttribute('aria-hidden', 'true');
+        overlay.replaceChildren();
+        document.getElementById('rankingInfoButton').focus();
+    });
+    actions.appendChild(closeButton);
+
+    content.append(title, explanation, formula, example, ordering, actions);
+    overlay.replaceChildren(content);
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+    closeButton.focus();
+}
+
+
 
 function addItem() {
     const itemName = itemInput.value.trim();
@@ -306,7 +355,7 @@ function clearInputs() {
 function updateScore(id, change) {
     let item = items.find(item => item.id === id);
     if (item) {
-        item.score = Math.max(0, item.score + change);
+        item.score = Math.min(10, Math.max(0, Number(item.score) + change));
         renderList();
     }
 }
@@ -434,6 +483,7 @@ function off() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("addButton").addEventListener("click", on);
+    document.getElementById('rankingInfoButton').addEventListener('click', showRankingInfo);
     document.getElementById("clearButton").addEventListener("click", clearItems);
     document.getElementById("closeFormButton").addEventListener("click", off);
     searchInput.addEventListener('input', renderList);
