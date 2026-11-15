@@ -8,7 +8,7 @@ A web application for ranking and reviewing anime, manga, webtoons, and other me
 - **Weighted Scoring**: Automatic calculation of weighted scores based on your ratings
 - **Tags**: Add custom tags to categorize your items
 - **Reviews**: Write detailed reviews for each item
-- **Persistent Storage**: Your rankings are saved locally in your browser
+- **Persistent Storage**: Guest rankings are saved for the current browser tab session; account rankings are saved to your account
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## How to Use

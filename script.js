@@ -69,9 +69,9 @@ function canAddRanking() {
 
 function saveGuestItems(collection) {
     try {
-        localStorage.setItem('rankedItems', JSON.stringify(sortedItems(collection)));
+        sessionStorage.setItem('rankedItems', JSON.stringify(sortedItems(collection)));
     } catch (error) {
-        throw new Error(`Could not save your guest collection in this browser: ${error.message}`);
+        throw new Error(`Could not save your guest collection in this browser session: ${error.message}`);
     }
 }
 
@@ -93,7 +93,7 @@ async function loadCollection(userId) {
         if (userId) {
             loadedItems = await fetchRankings(userId);
         } else {
-            const savedItems = localStorage.getItem('rankedItems');
+            const savedItems = sessionStorage.getItem('rankedItems');
             loadedItems = savedItems ? JSON.parse(savedItems) : [];
             if (!Array.isArray(loadedItems)) {
                 throw new Error('Saved guest rankings are not in a valid format.');
