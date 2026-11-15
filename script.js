@@ -29,8 +29,6 @@ class Item {
     }
 }
 
-
-
 function calculateWeightedScore(ratings) {
     const weights = { art: 0.3, story: 0.3, characters: 0.2, enjoyment: 0.2 };
     let score = (ratings.art * weights.art) +
@@ -519,7 +517,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    
     const savedItems = localStorage.getItem('rankedItems');
     items = savedItems ? JSON.parse(savedItems) : [];
     renderList();
