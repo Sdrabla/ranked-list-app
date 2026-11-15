@@ -7,12 +7,27 @@ const authModal = document.getElementById('authModal');
 const closeAuthModalButton = document.getElementById('closeAuthModal');
 const loginForm = document.getElementById('loginForm');
 const signupForm = document.getElementById('signupForm');
+const passwordRecoveryForm = document.getElementById('passwordRecoveryForm');
 const authMessage = document.getElementById('authMessage');
 const guestContinueButton = document.getElementById('guestContinueButton');
 const resetPasswordButton = document.getElementById('resetPasswordBtn');
 const authTabs = Array.from(document.querySelectorAll('.auth-tab'));
 
 let currentSession = null;
+let passwordRecoveryMode = false;
+let hasNotifiedRankingAuthState = false;
+let lastNotifiedRankingUserId = null;
+
+function notifyRankingAuthChange(session) {
+  const userId = session?.user?.id ?? null;
+  if (hasNotifiedRankingAuthState && userId === lastNotifiedRankingUserId) return;
+
+  hasNotifiedRankingAuthState = true;
+  lastNotifiedRankingUserId = userId;
+  window.dispatchEvent(new CustomEvent('ranked:auth-change', {
+    detail: { user: session?.user ?? null }
+  }));
+}
 
 function isGuestMode() {
   return localStorage.getItem(AUTH_GUEST_KEY) === 'true';
@@ -30,6 +45,14 @@ function setGuestMode(enabled) {
 function getReadableAuthError(error) {
   const message = error?.message || 'Something went wrong. Please try again.';
   const normalized = message.toLowerCase();
+
+  if (normalized.includes('otp_expired') || normalized.includes('expired') || normalized.includes('invalid or has expired')) {
+    return 'This password reset link is invalid or has expired. Request a new reset email and use the newest link.';
+  }
+
+  if (normalized.includes('failed to fetch') || normalized.includes('network')) {
+    return 'Could not connect to the authentication service. Check your connection and try again.';
+  }
 
   if (normalized.includes('invalid login credentials')) {
     return 'Incorrect email or password.';
@@ -51,12 +74,26 @@ function getReadableAuthError(error) {
     return 'Password must be at least 6 characters long.';
   }
 
-  if (normalized.includes('email')) {
+  if (
+    normalized.includes('invalid email')
+    || normalized.includes('email is invalid')
+    || normalized.includes('unable to validate email')
+    || normalized.includes('email address is invalid')
+    || normalized.includes('email address is not valid')
+  ) {
     return 'Please enter a valid email address.';
   }
 
+  if (
+    normalized.includes('email rate limit')
+    || normalized.includes('over_email_send_rate_limit')
+    || normalized.includes('email rate limit exceeded')
+  ) {
+    return 'Supabase is limiting email delivery for this project. The built-in email provider allows 2 auth emails per hour across the project. Check Authentication > Rate Limits, or configure custom SMTP in Supabase.';
+  }
+
   if (normalized.includes('rate limit')) {
-    return 'Too many attempts. Please wait a moment and try again.';
+    return 'Supabase temporarily rate-limited this request. The cooldown depends on the limit reached; check Authentication > Rate Limits in your Supabase dashboard before retrying.';
   }
 
   return message;
@@ -97,7 +134,11 @@ function setFormLoadingState(form, isLoading) {
 }
 
 function switchAuthTab(tabName) {
+  passwordRecoveryMode = false;
   const isLogin = tabName === 'login';
+  passwordRecoveryForm.classList.add('hidden');
+  document.querySelector('.auth-tabs').classList.remove('hidden');
+  guestContinueButton.classList.remove('hidden');
 
   authTabs.forEach((tab) => {
     const active = tab.dataset.authTab === tabName;
@@ -120,9 +161,29 @@ function openAuthModal(view = 'login') {
   setTimeout(() => firstInput.focus(), 50);
 }
 
+function openPasswordRecoveryModal() {
+  passwordRecoveryMode = true;
+  document.querySelector('.auth-tabs').classList.add('hidden');
+  guestContinueButton.classList.add('hidden');
+  loginForm.classList.add('hidden');
+  signupForm.classList.add('hidden');
+  passwordRecoveryForm.classList.remove('hidden');
+  document.getElementById('authModalTitle').textContent = 'Reset your password';
+  authOverlay.classList.add('is-visible');
+  authOverlay.setAttribute('aria-hidden', 'false');
+  setAuthMessage('Password reset link verified. Choose a new password.', 'info');
+  setTimeout(() => document.getElementById('newPassword').focus(), 50);
+}
+
 function closeAuthModal() {
   authOverlay.classList.remove('is-visible');
   authOverlay.setAttribute('aria-hidden', 'true');
+  passwordRecoveryMode = false;
+  passwordRecoveryForm.reset();
+  passwordRecoveryForm.classList.add('hidden');
+  document.querySelector('.auth-tabs').classList.remove('hidden');
+  guestContinueButton.classList.remove('hidden');
+  switchAuthTab('login');
   authMessage.textContent = '';
   authMessage.className = 'auth-message';
 }
@@ -226,13 +287,22 @@ async function handleSignup(event) {
 }
 
 async function handlePasswordReset() {
-  const email = loginForm.email.value.trim() || signupForm.email.value.trim();
+  const activeForm = loginForm.classList.contains('hidden') ? signupForm : loginForm;
+  const activeEmail = activeForm.elements.email.value.trim();
+  const email = (activeEmail || currentSession?.user?.email || '').trim();
 
   if (!email) {
     setAuthMessage('Enter your email address first, then request a password reset.', 'error');
     return;
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setAuthMessage('Enter a valid email address, then request a password reset.', 'error');
+    return;
+  }
+
+  resetPasswordButton.disabled = true;
+  resetPasswordButton.textContent = 'Sending…';
   try {
     const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + window.location.pathname
@@ -245,6 +315,41 @@ async function handlePasswordReset() {
     setAuthMessage('A password reset email has been sent. Check your inbox.', 'success');
   } catch (error) {
     setAuthMessage(getReadableAuthError(error), 'error');
+  } finally {
+    resetPasswordButton.disabled = false;
+    resetPasswordButton.textContent = 'Forgot password?';
+  }
+}
+
+async function handlePasswordRecovery(event) {
+  event.preventDefault();
+  const password = passwordRecoveryForm.elements.password.value;
+  const confirmPassword = passwordRecoveryForm.elements.confirmPassword.value;
+
+  if (password.length < 6) {
+    setAuthMessage('Choose a password with at least 6 characters.', 'error');
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    setAuthMessage('The passwords do not match.', 'error');
+    return;
+  }
+
+  setFormLoadingState(passwordRecoveryForm, true);
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password });
+    if (error) throw error;
+
+    passwordRecoveryForm.reset();
+    passwordRecoveryForm.classList.add('hidden');
+    passwordRecoveryMode = false;
+    document.getElementById('authModalTitle').textContent = 'Password updated';
+    setAuthMessage('Your password has been updated. You are signed in.', 'success');
+  } catch (error) {
+    setAuthMessage(getReadableAuthError(error), 'error');
+  } finally {
+    setFormLoadingState(passwordRecoveryForm, false);
   }
 }
 
@@ -306,6 +411,7 @@ function bindAuthEvents() {
 
   loginForm.addEventListener('submit', handleLogin);
   signupForm.addEventListener('submit', handleSignup);
+  passwordRecoveryForm.addEventListener('submit', handlePasswordRecovery);
 
   authOverlay.addEventListener('click', (event) => {
     if (event.target === authOverlay) {
@@ -323,14 +429,16 @@ function bindAuthEvents() {
 async function initializeAuth() {
   bindAuthEvents();
 
-  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  const callbackParams = new URLSearchParams(window.location.hash.slice(1));
+  const callbackErrorCode = callbackParams.get('error_code');
+  const callbackErrorDescription = callbackParams.get('error_description');
+  const hasRecoveryError = callbackErrorCode === 'otp_expired'
+    || callbackErrorCode === 'access_denied'
+    || Boolean(callbackErrorDescription);
 
-  if (error) {
-    setAuthMessage('Session could not be loaded. Please refresh the page.', 'error');
+  if (hasRecoveryError) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
   }
-
-  currentSession = session;
-  updateAuthUi(session);
 
   supabaseClient.auth.onAuthStateChange((event, sessionData) => {
     currentSession = sessionData;
@@ -340,7 +448,40 @@ async function initializeAuth() {
     }
 
     updateAuthUi(sessionData);
+    notifyRankingAuthChange(sessionData);
+
+    if (event === 'PASSWORD_RECOVERY') {
+      setGuestMode(false);
+      openPasswordRecoveryModal();
+    }
   });
+
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+
+    if (error) {
+      throw error;
+    }
+
+    currentSession = data.session;
+    updateAuthUi(data.session);
+  } catch (error) {
+    currentSession = null;
+    updateAuthUi(null);
+    setAuthMessage(`Session could not be loaded: ${getReadableAuthError(error)}`, 'error');
+  } finally {
+    notifyRankingAuthChange(currentSession);
+  }
+
+  if (hasRecoveryError) {
+    openAuthModal('login');
+    setAuthMessage(
+      callbackErrorCode === 'otp_expired'
+        ? 'This password reset link is expired or already used. Request a new email and open the newest link.'
+        : callbackErrorDescription.replace(/\+/g, ' '),
+      'error'
+    );
+  }
 }
 
 if (document.readyState === 'loading') {

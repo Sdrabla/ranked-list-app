@@ -54,6 +54,8 @@
         <div>
           <h2 id="collectionHeading">Your collection</h2>
           <p id="collectionSummary" aria-live="polite">0 titles ranked</p>
+          <p id="collectionStatus" class="collection-status" role="status" aria-live="polite" hidden></p>
+          <button id="retryCollectionButton" class="collection-retry-button" type="button" hidden>Retry loading</button>
         </div>
         <div class="collection-actions">
           <button id="addButton" type="button" aria-controls="addItemForm">+ Add title</button>
@@ -130,6 +132,19 @@
         <button type="submit" class="primary-auth-button">Create account</button>
       </form>
 
+      <form id="passwordRecoveryForm" class="auth-form hidden" novalidate>
+        <p class="auth-form-intro">Choose a new password for your account.</p>
+        <div class="form-field">
+          <label for="newPassword">New password</label>
+          <input id="newPassword" name="password" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters" required>
+        </div>
+        <div class="form-field">
+          <label for="confirmNewPassword">Confirm new password</label>
+          <input id="confirmNewPassword" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Re-enter your new password" required>
+        </div>
+        <button type="submit" class="primary-auth-button">Update password</button>
+      </form>
+
       <div id="authMessage" class="auth-message" role="status" aria-live="polite"></div>
 
       <button id="guestContinueButton" class="guest-button" type="button">Continue as guest</button>
@@ -172,10 +187,12 @@
       <label for="ReviewInput">Review <span>(optional)</span></label>
       <textarea id="ReviewInput" placeholder="What did you think?"></textarea>
     </div>
+    <p id="itemFormStatus" class="item-form-status" role="status" aria-live="polite" hidden></p>
     <button id="submitItemButton" type="submit">Add item</button>
   </form>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-client.js"></script>
+  <script src="database.js"></script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
 </body>
