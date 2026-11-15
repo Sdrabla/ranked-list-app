@@ -4,44 +4,124 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ranked List</title>
-  <link rel="stylesheet" href="styles.css?v=1.1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=1.4">
 </head>
 <body>
   <header>
-    <h1 id="title">Ranked</h1>
-    <h2>Rank anime/manga/Webtoons/etc. Rate each factor out of 10! Add tags and a review! Change your mind? Edit it!</h2>
-    
-    <!-- /*Have H3 be a banner that scrolls thru page*/ -->
-    <div id='container'>
-      <div class='scroll'>
-          <div class='item'>"I will take a potato chip...and EAT IT" - Light Yagami</div>
-          <div class='item'>"Omae wa mou shindeiru" - Kenshiro" </div>
-          <div class='item'>"Those who do not understand true pain can never understand true peace" -Pain</div>
-          <div class='item'>"Those who break the rules are scum, but those who abandon their friends are worse than scum" - LKakashi Hatake</div>
-          <div class='item'>"42-42-564, whenever you want to knock on Death's door" - Maka Albarn</div>
+    <div class="site-header-inner">
+      <div class="app-identity">
+        <h1 id="title">Ranked</h1>
+        <div class="app-subtitle-row">
+          <p>Keep a personal ranking of the anime, manga, webtoons, and more you love.</p>
+          <button id="rankingInfoButton" class="ranking-info-button" type="button" aria-label="How scoring works" aria-controls="overlay" title="How scoring works">i</button>
+        </div>
       </div>
-      <div class='fade'></div>
-  </div>
-    <button id="addButton" onclick="on()" type="submit" >Add new item</button>
-    <button id="clearButton" onclick="clearItems()" type="submit" >Clear all items</button>
-    <div id="overlay"></div>
-    <form id="addItemForm">
-      <h1 id="addNew">Add New:</h1>
-      <input type="text" id="ItemInput" placeholder="Title" required>
-      <input type="number" id="ArtInput" min="1" max="10" placeholder="Rank art style out of 10" required>
-      <input type="number" id="StoryInput" min="1" max="10" placeholder="Rank story out of 10" required>
-      <input type="number" id="CharactersInput" min="1" max="10" placeholder="Rank characters out of 10" required>
-      <input type="number" id="EnjoymentInput" min="1" max="10" placeholder="Rank overall enjoyment out of 10" required>
-      <input type="text" id="TagsInput" placeholder="Add tags (separate with commas)">
-      <textarea id="ReviewInput" placeholder="Add a review"></textarea>
-      <button onclick="addItem() ; off()" type="submit" >Add</button>
-    </form>
+      <details id="quotesPanel">
+        <summary>Anime quotes <span>(optional)</span></summary>
+        <div id="container" aria-label="Anime quotes">
+          <div class="scroll">
+            <div class="quote-group">
+              <span class="quote-chip">"I will take a potato chip...and EAT IT" - Light Yagami</span>
+              <span class="quote-chip">"Omae wa mou shindeiru" - Kenshiro</span>
+              <span class="quote-chip">"Those who do not understand true pain can never understand true peace" - Pain</span>
+              <span class="quote-chip">"Those who break the rules are scum, but those who abandon their friends are worse than scum" - Kakashi Hatake</span>
+              <span class="quote-chip">"42-42-564, whenever you want to knock on Death's door" - Maka Albarn</span>
+            </div>
+            <div class="quote-group" aria-hidden="true">
+              <span class="quote-chip">"I will take a potato chip...and EAT IT" - Light Yagami</span>
+              <span class="quote-chip">"Omae wa mou shindeiru" - Kenshiro</span>
+              <span class="quote-chip">"Those who do not understand true pain can never understand true peace" - Pain</span>
+              <span class="quote-chip">"Those who break the rules are scum, but those who abandon their friends are worse than scum" - Kakashi Hatake</span>
+              <span class="quote-chip">"42-42-564, whenever you want to knock on Death's door" - Maka Albarn</span>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
   </header>
   <main>
-    
-    
-    <ul id="rankedList"></ul>
+    <section class="collection" aria-labelledby="collectionHeading">
+      <div class="collection-heading">
+        <div>
+          <h2 id="collectionHeading">Your collection</h2>
+          <p id="collectionSummary" aria-live="polite">0 titles ranked</p>
+        </div>
+        <div class="collection-actions">
+          <button id="addButton" type="button" aria-controls="addItemForm">+ Add title</button>
+          <details class="overflow-menu">
+            <summary aria-label="Collection settings">More</summary>
+            <div class="overflow-menu-content">
+              <button id="clearButton" type="button">Clear all items</button>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="collection-filters">
+        <label class="search-field" for="searchInput">
+          <span>Search collection</span>
+          <input id="searchInput" type="search" placeholder="Search titles, tags, or reviews">
+        </label>
+        <label class="filter-field" for="tagFilter">
+          <span>Tag</span>
+          <select id="tagFilter">
+            <option value="">All tags</option>
+          </select>
+        </label>
+        <label class="filter-field" for="scoreFilter">
+          <span>Score</span>
+          <select id="scoreFilter">
+            <option value="">Any score</option>
+            <option value="high">8 and above</option>
+            <option value="mid">6 to 7.99</option>
+            <option value="low">Below 6</option>
+          </select>
+        </label>
+      </div>
+      <p id="emptyState" class="empty-state">Your collection is empty. Add a title to get started.</p>
+      <ul id="rankedList"></ul>
+    </section>
   </main>
+  <div id="overlay" aria-hidden="true"></div>
+  <form id="addItemForm" aria-labelledby="addNew" aria-modal="true" role="dialog">
+    <div class="form-heading">
+      <h2 id="addNew">Add new item</h2>
+      <button class="modal-close" id="closeFormButton" type="button" aria-label="Close form">&times;</button>
+    </div>
+    <div class="form-field">
+      <label for="ItemInput">Title</label>
+      <input type="text" id="ItemInput" placeholder="e.g. Your favorite series" required>
+    </div>
+    <div class="rating-fields">
+      <div class="form-field">
+        <label for="ArtInput">Art style (1-10)</label>
+        <input type="number" id="ArtInput" min="1" max="10" inputmode="numeric" required>
+      </div>
+      <div class="form-field">
+        <label for="StoryInput">Story (1-10)</label>
+        <input type="number" id="StoryInput" min="1" max="10" inputmode="numeric" required>
+      </div>
+      <div class="form-field">
+        <label for="CharactersInput">Characters (1-10)</label>
+        <input type="number" id="CharactersInput" min="1" max="10" inputmode="numeric" required>
+      </div>
+      <div class="form-field">
+        <label for="EnjoymentInput">Enjoyment (1-10)</label>
+        <input type="number" id="EnjoymentInput" min="1" max="10" inputmode="numeric" required>
+      </div>
+    </div>
+    <div class="form-field">
+      <label for="TagsInput">Tags <span>(optional, comma-separated)</span></label>
+      <input type="text" id="TagsInput" placeholder="Fantasy, adventure">
+    </div>
+    <div class="form-field">
+      <label for="ReviewInput">Review <span>(optional)</span></label>
+      <textarea id="ReviewInput" placeholder="What did you think?"></textarea>
+    </div>
+    <button id="submitItemButton" type="submit">Add item</button>
+  </form>
   <script src="script.js"></script>
 </body>
 </html>
