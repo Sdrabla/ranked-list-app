@@ -1,4 +1,11 @@
 const supabaseClient = supabase.createClient(
-  'https://bomoephlfzmztnvqhqct.supabase.co',
-  'sb_publishable_NoVkfsKLnGX2_j0JFr0dZw_boAI2tVp'
+  'https://YOUR-PROJECT-URL.supabase.co',
+  'YOUR-PUBLISHABLE-KEY',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 );
