@@ -12,8 +12,17 @@ const tagFilter = document.getElementById('tagFilter');
 const scoreFilter = document.getElementById('scoreFilter');
 const collectionSummary = document.getElementById('collectionSummary');
 const emptyState = document.getElementById('emptyState');
+const itemFormStatus = document.getElementById('itemFormStatus');
 let items = [];
 let editingItemId = null;
+let activeUserId = null;
+let collectionReady = false;
+let cloudCollectionLoadFailed = false;
+let collectionLoadGeneration = 0;
+let itemSubmissionInProgress = false;
+const pendingCollectionActions = new Set();
+const collectionStatus = document.getElementById('collectionStatus');
+const retryCollectionButton = document.getElementById('retryCollectionButton');
 
 class Item {
     constructor(id, name, art, story, characters, enjoyment, tags, review) {
@@ -29,8 +38,6 @@ class Item {
     }
 }
 
-
-
 function calculateWeightedScore(ratings) {
     const weights = { art: 0.3, story: 0.3, characters: 0.2, enjoyment: 0.2 };
     let score = (ratings.art * weights.art) +
@@ -38,6 +45,100 @@ function calculateWeightedScore(ratings) {
                 (ratings.characters * weights.characters) +
                 (ratings.enjoyment * weights.enjoyment);
     return score.toFixed(2); // Ensure the score is a string with two decimal places
+}
+
+function showCollectionStatus(message, state = 'info', canRetry = false) {
+    collectionStatus.textContent = message;
+    collectionStatus.dataset.state = state;
+    collectionStatus.hidden = !message;
+    retryCollectionButton.hidden = !canRetry;
+}
+
+function showItemFormStatus(message) {
+    itemFormStatus.textContent = message;
+    itemFormStatus.hidden = !message;
+}
+
+function sortedItems(collection) {
+    return [...collection].sort((a, b) => Number(b.score) - Number(a.score));
+}
+
+function canAddRanking() {
+    return collectionReady || (Boolean(activeUserId) && cloudCollectionLoadFailed);
+}
+
+function saveGuestItems(collection) {
+    try {
+        localStorage.setItem('rankedItems', JSON.stringify(sortedItems(collection)));
+    } catch (error) {
+        throw new Error(`Could not save your guest collection in this browser: ${error.message}`);
+    }
+}
+
+async function loadCollection(userId) {
+    if (activeUserId !== userId && addItemForm.classList.contains('active')) {
+        off();
+    }
+
+    const generation = ++collectionLoadGeneration;
+    activeUserId = userId;
+    collectionReady = false;
+    cloudCollectionLoadFailed = false;
+    items = [];
+    showCollectionStatus(userId ? 'Loading your account rankings…' : 'Loading your guest collection…');
+    renderList();
+
+    try {
+        let loadedItems;
+        if (userId) {
+            loadedItems = await fetchRankings(userId);
+        } else {
+            const savedItems = localStorage.getItem('rankedItems');
+            loadedItems = savedItems ? JSON.parse(savedItems) : [];
+            if (!Array.isArray(loadedItems)) {
+                throw new Error('Saved guest rankings are not in a valid format.');
+            }
+        }
+
+        if (generation !== collectionLoadGeneration) return;
+        items = loadedItems;
+        collectionReady = true;
+        cloudCollectionLoadFailed = false;
+        showCollectionStatus('');
+        renderList();
+    } catch (error) {
+        if (generation !== collectionLoadGeneration) return;
+        collectionReady = false;
+        cloudCollectionLoadFailed = Boolean(userId);
+        showCollectionStatus(`Could not load rankings. ${error.message}`, 'error', true);
+        renderList();
+    }
+}
+
+async function initializeCollectionFromAuth() {
+    const generation = ++collectionLoadGeneration;
+    collectionReady = false;
+    cloudCollectionLoadFailed = false;
+    items = [];
+    showCollectionStatus('Checking your account…');
+    renderList();
+
+    try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        if (generation !== collectionLoadGeneration) return;
+        await loadCollection(data.session?.user?.id ?? null);
+    } catch (error) {
+        if (generation !== collectionLoadGeneration) return;
+        activeUserId = null;
+        collectionReady = false;
+        showCollectionStatus(`Could not check your account. ${error.message}`, 'error', true);
+        renderList();
+    }
+}
+
+function isCurrentCollection(generation, userId) {
+    return generation === collectionLoadGeneration && userId === activeUserId;
 }
 
 //move item to correct position in the list
@@ -103,7 +204,11 @@ function renderList() {
     emptyState.textContent = items.length === 0
         ? 'Your collection is empty. Add a title to get started.'
         : 'No titles match your search and filters.';
-    document.getElementById('clearButton').disabled = items.length === 0;
+    const clearButton = document.getElementById('clearButton');
+    clearButton.textContent = pendingCollectionActions.has('clear') ? 'Clearing…' : 'Clear all items';
+    clearButton.disabled = !collectionReady || items.length === 0 || pendingCollectionActions.size > 0;
+    document.getElementById('addButton').disabled = !canAddRanking()
+        || pendingCollectionActions.size > 0 || itemSubmissionInProgress;
 
     visibleItems.forEach(({item, index}) => {
         const tags = Array.isArray(item.tags) ? item.tags : [];
@@ -162,12 +267,15 @@ function renderList() {
         editButton.className = 'edit-btn';
         editButton.type = 'button';
         editButton.textContent = 'Edit';
+        editButton.disabled = pendingCollectionActions.size > 0;
         editButton.addEventListener('click', () => editItem(item.id));
 
         const deleteButton = document.createElement('button');
         deleteButton.className = 'delete-btn';
         deleteButton.type = 'button';
-        deleteButton.textContent = 'Delete';
+        const deletingItem = pendingCollectionActions.has(`delete:${item.id}`);
+        deleteButton.textContent = deletingItem ? 'Deleting…' : 'Delete';
+        deleteButton.disabled = pendingCollectionActions.size > 0;
         deleteButton.addEventListener('click', () => deleteItem(item.id));
         actions.append(detailButton, editButton, deleteButton);
 
@@ -176,7 +284,6 @@ function renderList() {
         rankedList.appendChild(li);
     });
 
-    localStorage.setItem('rankedItems', JSON.stringify(items));
 }
 
 function showItemDetails(item) {
@@ -241,7 +348,7 @@ function showItemDetails(item) {
     closeButton.addEventListener('click', () => {
         overlay.classList.remove('active');
         overlay.setAttribute('aria-hidden', 'true');
-        overlay.innerHTML = '';
+        overlay.replaceChildren();
     });
     actions.append(editButton, deleteButton, closeButton);
     content.appendChild(actions);
@@ -299,7 +406,9 @@ function showRankingInfo() {
 
 
 
-function addItem() {
+async function addItem() {
+    if (!canAddRanking() || itemSubmissionInProgress || pendingCollectionActions.size > 0) return;
+
     const itemName = itemInput.value.trim();
     const art = parseInt(artInput.value, 10);
     const story = parseInt(storyInput.value, 10);
@@ -311,35 +420,75 @@ function addItem() {
     // Parse tags from comma-separated input
     const tags = tagsText ? tagsText.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [];
 
-    // Validate input values
-    if (itemName && [art, story, characters, enjoyment].every(rating => Number.isInteger(rating) && rating >= 1 && rating <= 10)) {
-        const newItem = new Item(Date.now(), itemName, art, story, characters, enjoyment, tags, review);
-        items.push(newItem);
-        
-        // Recalculate scores for all items
-        items.forEach(item => {
-            item.score = calculateWeightedScore({
-                art: item.art,
-                story: item.story,
-                characters: item.characters,
-                enjoyment: item.enjoyment
-            });
-            console.log(`Item: ${item.name}, Score: ${item.score}`); // Debugging line
-        });
+    if (!itemName || ![art, story, characters, enjoyment].every(rating => Number.isInteger(rating) && rating >= 1 && rating <= 10)) {
+        showItemFormStatus('Enter a title and valid ratings from 1 to 10.');
+        return;
+    }
 
+    showItemFormStatus('');
+    itemSubmissionInProgress = true;
+    const submitButton = document.getElementById('submitItemButton');
+    const originalButtonText = submitButton.textContent;
+    const generation = collectionLoadGeneration;
+    const userId = activeUserId;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Saving…';
+
+    try {
+        const newItem = new Item(userId ? null : Date.now(), itemName, art, story, characters, enjoyment, tags, review);
+        const savedItem = userId ? await addRanking(newItem, userId) : newItem;
+        if (!userId) saveGuestItems([...items, savedItem]);
+        if (!isCurrentCollection(generation, userId)) return;
+
+        items = sortedItems([...items, savedItem]);
         renderList();
-        clearInputs(); // Clear inputs after adding the item
+        clearInputs();
         off();
-
-    } else {
-        console.log('Please enter valid ratings between 1 and 10.');
+        if (cloudCollectionLoadFailed) {
+            showCollectionStatus('Ranking saved, but the rest of your collection could not be loaded.', 'error', true);
+        } else {
+            showCollectionStatus('');
+        }
+    } catch (error) {
+        if (isCurrentCollection(generation, userId)) {
+            showItemFormStatus(`Could not save this ranking. ${error.message}`);
+        }
+    } finally {
+        itemSubmissionInProgress = false;
+        submitButton.disabled = !collectionReady;
+        submitButton.textContent = editingItemId === null ? originalButtonText : 'Save changes';
+        renderList();
     }
 }
 
-function clearItems() {
-    if (items.length === 0 || !confirm('Clear all ranked items? This cannot be undone.')) return;
-    items = [];
+async function clearItems() {
+    if (!collectionReady || items.length === 0 || pendingCollectionActions.size > 0 || itemSubmissionInProgress) return;
+    if (!confirm('Clear all ranked items? This cannot be undone.')) return;
+
+    const generation = collectionLoadGeneration;
+    const userId = activeUserId;
+    pendingCollectionActions.add('clear');
     renderList();
+
+    try {
+        if (userId) {
+            await clearRankings(userId);
+        } else {
+            saveGuestItems([]);
+        }
+
+        if (!isCurrentCollection(generation, userId)) return;
+        items = [];
+        renderList();
+        showCollectionStatus('');
+    } catch (error) {
+        if (isCurrentCollection(generation, userId)) {
+            showCollectionStatus(`Could not clear rankings. ${error.message}`, 'error');
+        }
+    } finally {
+        pendingCollectionActions.delete('clear');
+        renderList();
+    }
 }
 
 function clearInputs() {
@@ -361,8 +510,10 @@ function updateScore(id, change) {
 }
 
 function editItem(id) {
+    if (!collectionReady) return;
     const item = items.find(item => item.id === id);
     if (!item) return;
+    showItemFormStatus('');
     
     // Populate the form with existing data
     itemInput.value = item.name;
@@ -375,7 +526,7 @@ function editItem(id) {
     
     // Show the form
     const overlay = document.getElementById("overlay");
-    overlay.innerHTML = "";
+    overlay.replaceChildren();
 
     editingItemId = id;
     const addForm = document.querySelector("#addItemForm");
@@ -392,7 +543,8 @@ function editItem(id) {
     itemInput.focus();
 }
 
-function updateItem(id) {
+async function updateItem(id) {
+    if (!collectionReady || itemSubmissionInProgress || pendingCollectionActions.size > 0) return;
     const item = items.find(item => item.id === id);
     if (!item) return;
     
@@ -407,49 +559,89 @@ function updateItem(id) {
     // Parse tags from comma-separated input
     const tags = tagsText ? tagsText.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [];
 
-    // Validate input values
-    if (itemName && [art, story, characters, enjoyment].every(rating => Number.isInteger(rating) && rating >= 1 && rating <= 10)) {
-        // Update the item
-        item.name = itemName;
-        item.art = art;
-        item.story = story;
-        item.characters = characters;
-        item.enjoyment = enjoyment;
-        item.tags = tags;
-        item.review = review;
-        item.score = calculateWeightedScore({art, story, characters, enjoyment});
-        
-        // Recalculate scores for all items
-        items.forEach(item => {
-            item.score = calculateWeightedScore({
-                art: item.art,
-                story: item.story,
-                characters: item.characters,
-                enjoyment: item.enjoyment
-            });
-        });
+    if (!itemName || ![art, story, characters, enjoyment].every(rating => Number.isInteger(rating) && rating >= 1 && rating <= 10)) {
+        showItemFormStatus('Enter a title and valid ratings from 1 to 10.');
+        return;
+    }
 
+    showItemFormStatus('');
+    itemSubmissionInProgress = true;
+    const submitButton = document.getElementById('submitItemButton');
+    const generation = collectionLoadGeneration;
+    const userId = activeUserId;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Saving…';
+
+    try {
+        const updatedItem = new Item(item.id, itemName, art, story, characters, enjoyment, tags, review);
+        updatedItem.coverUrl = item.coverUrl ?? null;
+        updatedItem.mediaType = item.mediaType ?? null;
+        updatedItem.externalMediaId = item.externalMediaId ?? null;
+        updatedItem.legacyId = item.legacyId ?? null;
+        updatedItem.createdAt = item.createdAt ?? null;
+        updatedItem.updatedAt = item.updatedAt ?? null;
+
+        const savedItem = userId
+            ? await updateRanking(updatedItem, userId)
+            : updatedItem;
+        const nextItems = items.map(existing => existing.id === id ? savedItem : existing);
+        if (!userId) saveGuestItems(nextItems);
+        if (!isCurrentCollection(generation, userId)) return;
+
+        items = sortedItems(nextItems);
         renderList();
         clearInputs();
-        off(); // Close the form
-
-    } else {
-        console.log('Please enter valid ratings between 1 and 10.');
+        off();
+        showCollectionStatus('');
+    } catch (error) {
+        if (isCurrentCollection(generation, userId)) {
+            showItemFormStatus(`Could not update this ranking. ${error.message}`);
+        }
+    } finally {
+        itemSubmissionInProgress = false;
+        submitButton.disabled = !collectionReady;
+        submitButton.textContent = editingItemId === null ? 'Add item' : 'Save changes';
+        renderList();
     }
 }
 
-function deleteItem(id) {
-    if (confirm('Are you sure you want to delete this item?')) {
-        items = items.filter(item => item.id !== id);
+async function deleteItem(id) {
+    const item = items.find(item => item.id === id);
+    if (!collectionReady || !item || pendingCollectionActions.size > 0 || itemSubmissionInProgress) return;
+    if (!confirm('Are you sure you want to delete this item?')) return;
+
+    const actionKey = `delete:${id}`;
+    const generation = collectionLoadGeneration;
+    const userId = activeUserId;
+    const nextItems = items.filter(existing => existing.id !== id);
+    pendingCollectionActions.add(actionKey);
+    renderList();
+
+    try {
+        if (userId) {
+            await deleteRanking(id, userId);
+        } else {
+            saveGuestItems(nextItems);
+        }
+
+        if (!isCurrentCollection(generation, userId)) return;
+        items = nextItems;
         renderList();
-        
-        // Close overlay if it's open
-        const overlay = document.getElementById("overlay");
+
+        const overlay = document.getElementById('overlay');
         if (overlay.classList.contains('active')) {
             overlay.classList.remove('active');
             overlay.setAttribute('aria-hidden', 'true');
-            overlay.innerHTML = "";
+            overlay.replaceChildren();
         }
+        showCollectionStatus('');
+    } catch (error) {
+        if (isCurrentCollection(generation, userId)) {
+            showCollectionStatus(`Could not delete this ranking. ${error.message}`, 'error');
+        }
+    } finally {
+        pendingCollectionActions.delete(actionKey);
+        renderList();
     }
 }
 
@@ -457,8 +649,9 @@ function deleteItem(id) {
 function on() {
     editingItemId = null;
     clearInputs();
+    showItemFormStatus('');
     const overlay = document.getElementById("overlay");
-    overlay.innerHTML = "";
+    overlay.replaceChildren();
     overlay.classList.add('active');
     overlay.setAttribute('aria-hidden', 'false');
 
@@ -473,7 +666,7 @@ function off() {
     const overlay = document.getElementById("overlay");
     overlay.classList.remove('active');
     overlay.setAttribute('aria-hidden', 'true');
-    overlay.innerHTML = "";
+    overlay.replaceChildren();
     editingItemId = null;
 
     document.getElementById("addNew").textContent = "Add new item";
@@ -482,6 +675,7 @@ function off() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    retryCollectionButton.addEventListener('click', initializeCollectionFromAuth);
     document.getElementById("addButton").addEventListener("click", on);
     document.getElementById('rankingInfoButton').addEventListener('click', showRankingInfo);
     document.getElementById("clearButton").addEventListener("click", clearItems);
@@ -492,10 +686,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clearButton').addEventListener('click', () => {
         document.querySelector('.overflow-menu').open = false;
     });
-    addItemForm.addEventListener('submit', event => {
+    addItemForm.addEventListener('submit', async event => {
         event.preventDefault();
-        if (editingItemId === null) addItem();
-        else updateItem(editingItemId);
+        if (itemSubmissionInProgress || !canAddRanking()) return;
+        if (editingItemId === null) await addItem();
+        else await updateItem(editingItemId);
     });
 
     const overlay = document.getElementById("overlay");
@@ -505,7 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else {
             overlay.classList.remove('active');
             overlay.setAttribute('aria-hidden', 'true');
-            overlay.innerHTML = "";
+            overlay.replaceChildren();
         }
     });
 
@@ -515,12 +710,14 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (overlay.classList.contains('active')) {
             overlay.classList.remove('active');
             overlay.setAttribute('aria-hidden', 'true');
-            overlay.innerHTML = "";
+            overlay.replaceChildren();
         }
     });
 
-    
-    const savedItems = localStorage.getItem('rankedItems');
-    items = savedItems ? JSON.parse(savedItems) : [];
-    renderList();
+    window.addEventListener('ranked:auth-change', event => {
+        const userId = event.detail?.user?.id ?? null;
+        loadCollection(userId);
+    });
+
+    initializeCollectionFromAuth();
 });
